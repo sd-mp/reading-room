@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Reading Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181f;
+    --ink-soft:#1c222c;
+    --paper:#ece7dd;
+    --paper-dim:#a9a496;
+    --brass:#c8a24b;
+    --line:#2b3340;
+    --ok:#8fae7d;
+    --meh:#8a8477;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:"Newsreader",Georgia,serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;
+    min-height:100dvh;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .mono{font-family:"IBM Plex Mono",monospace}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  button:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+
+  /* top bar */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px 10px;
+  }
+  .brand{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--paper-dim)}
+  .stat-btn{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--paper-dim);padding:6px 8px}
+  .stat-btn:hover{color:var(--paper)}
+
+  /* focus line */
+  .focus-wrap{padding:0 20px}
+  .focus-label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--paper-dim);display:flex;justify-content:space-between;margin-bottom:8px}
+  .focus-track{height:2px;background:var(--line);position:relative;overflow:hidden}
+  .focus-fill{height:100%;width:0%;background:var(--brass);transition:width .25s linear}
+
+  /* card */
+  main{flex:1;display:flex;flex-direction:column;justify-content:center;padding:8px 22px 20px;overflow-y:auto}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
+  .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
+  .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:#d9d3c6;max-width:38em}
+  .excerpt p{margin-bottom:14px}
+  .readmore{display:inline-block;margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.06em;color:var(--paper);border-bottom:1px solid var(--brass);padding-bottom:2px}
+
+  /* footer controls */
+  footer{padding:14px 20px calc(18px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center;border-top:1px solid var(--line)}
+  .next{
+    flex:1;background:var(--ink-soft);color:var(--paper);
+    font-family:"IBM Plex Mono",monospace;font-size:14px;letter-spacing:.08em;
+    padding:16px;border:1px solid var(--line);border-radius:2px;
+    transition:opacity .3s,background .2s;
+  }
+  .next:enabled:hover{background:#232b37}
+  .next:disabled{opacity:.4;cursor:not-allowed}
+  .done{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--paper-dim);padding:16px 6px}
+  .done:hover{color:var(--paper)}
+
+  /* overlays */
+  .overlay{position:fixed;inset:0;background:rgba(10,13,18,.9);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:26px;z-index:20}
+  .overlay.show{display:flex}
+  .panel{background:var(--ink-soft);border:1px solid var(--line);border-radius:3px;max-width:420px;width:100%;padding:28px}
+  .panel h2{font-size:24px;font-weight:500;margin-bottom:6px}
+  .panel p{color:var(--paper-dim);font-size:15px;line-height:1.5;margin-bottom:22px}
+  .verdict-row{display:flex;gap:12px}
+  .verdict{flex:1;padding:15px;border-radius:2px;font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.06em;border:1px solid var(--line)}
+  .verdict.worth{background:rgba(143,174,125,.12);border-color:var(--ok);color:#c3d6b3}
+  .verdict.meh{background:rgba(138,132,119,.1);color:var(--paper-dim)}
+
+  /* stats panel */
+  .stats-list{display:flex;flex-direction:column;gap:2px;margin-bottom:22px}
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .stat-row .k{color:var(--paper-dim);letter-spacing:.04em}
+  .stat-row .v{font-size:20px;color:var(--paper)}
+  .stat-row .v small{font-size:12px;color:var(--paper-dim)}
+  .panel-actions{display:flex;gap:12px;flex-wrap:wrap}
+  .ghost{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;color:var(--paper);border:1px solid var(--line);border-radius:2px;padding:12px 14px}
+  .ghost:hover{background:#232b37}
+  .ghost.danger:hover{border-color:#a5584e;color:#e0a89f}
+  .close-x{position:absolute;top:16px;right:18px;font-family:"IBM Plex Mono",monospace;font-size:18px;color:var(--paper-dim)}
+
+  .loading{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.08em;color:var(--paper-dim);text-align:center;padding:40px}
+</style>
+</head>
+<body>
+  <header>
+    <span class="brand">Reading Room</span>
+    <button class="stat-btn" id="statsBtn">scorecard</button>
+  </header>
+
+  <div class="focus-wrap">
+    <div class="focus-label mono"><span id="focusState">focus</span><span id="focusCount"></span></div>
+    <div class="focus-track"><div class="focus-fill" id="focusFill"></div></div>
+  </div>
+
+  <main id="card">
+    <div class="loading" id="loading">gathering a few things worth your attention…</div>
+  </main>
+
+  <footer>
+    <button class="next" id="nextBtn" disabled>hold…</button>
+    <button class="done" id="doneBtn">I'm done</button>
+  </footer>
+
+  <!-- worth-it overlay -->
+  <div class="overlay" id="verdictOverlay">
+    <div class="panel">
+      <h2>Was this worth it?</h2>
+      <p>One honest tap. This is the whole point of the test — did you get something you actually wanted?</p>
+      <div class="verdict-row">
+        <button class="verdict worth" data-v="worth">Worth it</button>
+        <button class="verdict meh" data-v="meh">Meh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- stats overlay -->
+  <div class="overlay" id="statsOverlay">
+    <div class="panel" style="position:relative">
+      <button class="close-x" id="closeStats">×</button>
+      <h2 style="margin-bottom:18px">10-day scorecard</h2>
+      <div class="stats-list" id="statsList"></div>
+      <div class="panel-actions">
+        <button class="ghost" id="exportBtn">Export CSV</button>
+        <button class="ghost danger" id="resetBtn">Reset all data</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================================================
+   EDIT YOUR FEEDS HERE — any RSS links across topics you like.
+   Keep it to 3–5. Variety matters more than volume.
+   ============================================================ */
+const FEEDS = [
+  { name: "Aeon",          url: "https://aeon.co/feed.rss" },
+  { name: "Quanta",        url: "https://www.quantamagazine.org/feed/" },
+  { name: "Atlas Obscura", url: "https://www.atlasobscura.com/feeds/latest" },
+  { name: "BBC World",     url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+  { name: "TechCrunch",    url: "https://techcrunch.com/feed/" },
+  { name: "Guardian Biz",  url: "https://www.theguardian.com/uk/business/rss" },
+  { name: "BBC Sport",     url: "https://feeds.bbci.co.uk/sport/rss.xml" },
+];
+
+const FORCED_SECONDS = 40;   // how long "Next" stays locked. Your core variable.
+/* ============================================================ */
+
+// ---- tiny storage shim: real persistence when hosted; in-memory fallback in sandboxed previews ----
+const store = (() => {
+  let ok = true;
+  try { const k="__t"; localStorage.setItem(k,"1"); localStorage.removeItem(k); }
+  catch(e){ ok = false; }
+  const mem = {};
+  return {
+    get(k){ try{ return ok ? localStorage.getItem(k) : (mem[k]??null); }catch(e){ return mem[k]??null; } },
+    set(k,v){ try{ ok ? localStorage.setItem(k,v) : (mem[k]=v); }catch(e){ mem[k]=v; } }
+  };
+})();
+
+const LOG_KEY = "rr_sessions_v1";
+function loadLog(){ try{ return JSON.parse(store.get(LOG_KEY)||"[]"); }catch(e){ return []; } }
+function saveLog(l){ store.set(LOG_KEY, JSON.stringify(l)); }
+
+// ---- fallback cards so the screen is never dead (e.g. in a preview that blocks network) ----
+const FALLBACK = [
+  { source:"Reading Room", title:"This is a sample card", excerpt:"If you're seeing sample cards, live articles couldn't load here — that's normal inside a preview. Once you host the file (see the chat), your real feeds appear. The mechanic below is exactly what you're testing: the line at the top must fill before you can move on.", link:"#" },
+  { source:"Reading Room", title:"Sit with one thing", excerpt:"The whole experiment is whether you'll stay past the point you're allowed to leave. Don't rush to the next card. Notice if you *want* to keep going, or if you're just filling time.", link:"#" },
+  { source:"Reading Room", title:"Grade honestly on day 10", excerpt:"Tap 'scorecard' any time. The number that matters most is voluntary minutes — time you spent beyond what the timer forced. That's the signal that this is a real want, not a manufactured one.", link:"#" },
+];
+
+let queue = [];
+let idx = 0;
+let session = null;
+let cardEnteredAt = 0;
+let focusTimer = null;
+
+// ---- feed fetching via a keyless CORS proxy + in-browser XML parse ----
+async function fetchFeed(feed){
+  const proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(feed.url);
+  const res = await fetch(proxy);
+  const data = await res.json();
+  const xml = new DOMParser().parseFromString(data.contents, "text/xml");
+  const nodes = [...xml.querySelectorAll("item"), ...xml.querySelectorAll("entry")];
+  return nodes.slice(0, 12).map(n => {
+    const get = t => (n.querySelector(t)?.textContent || "").trim();
+    let link = get("link");
+    if(!link){ const l = n.querySelector("link"); link = l?.getAttribute("href") || "#"; }
+    const raw = get("description") || get("summary") || get("content") || "";
+    const tmp = document.createElement("div"); tmp.innerHTML = raw;
+    let excerpt = (tmp.textContent || "").replace(/\s+/g," ").trim();
+    if(excerpt.length > 460) excerpt = excerpt.slice(0,460).replace(/\s\S*$/,"") + "…";
+    return { source: feed.name, title: get("title"), excerpt, link };
+  }).filter(x => x.title && x.excerpt);
+}
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+async function buildQueue(){
+  const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+  let items = [];
+  results.forEach(r => { if(r.status==="fulfilled") items = items.concat(r.value); });
+  if(items.length < 3) items = FALLBACK.slice();
+  queue = shuffle(items);
+  idx = 0;
+}
+
+// ---- session lifecycle ----
+function startSession(){
+  session = { start: Date.now(), cards: [], forcedTotal: 0 };
+}
+function endSession(verdict){
+  if(!session) return;
+  const now = Date.now();
+  logCurrentCard(now);
+  const log = loadLog();
+  const durationSec = Math.round((now - session.start)/1000);
+  const forcedSec = session.forcedTotal;
+  log.push({
+    startISO: new Date(session.start).toISOString(),
+    day: new Date(session.start).toISOString().slice(0,10),
+    cards: session.cards.length,
+    durationSec,
+    forcedSec,
+    voluntarySec: Math.max(0, durationSec - forcedSec),
+    verdict
+  });
+  saveLog(log);
+  session = null;
+}
+function logCurrentCard(now){
+  if(!session || !cardEnteredAt) return;
+  const spent = Math.round((now - cardEnteredAt)/1000);
+  session.cards.push(spent);
+  session.forcedTotal += FORCED_SECONDS;
+  cardEnteredAt = 0;
+}
+
+// ---- rendering ----
+function renderCard(){
+  const item = queue[idx % queue.length];
+  const el = document.getElementById("card");
+  el.innerHTML = `
+    <div class="eyebrow mono">${item.source}</div>
+    <h1 class="title">${escapeHtml(item.title)}</h1>
+    <div class="excerpt"><p>${escapeHtml(item.excerpt)}</p></div>
+    ${item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ``}
+  `;
+  el.scrollTop = 0;
+  cardEnteredAt = Date.now();
+  startFocusLock();
+}
+
+function startFocusLock(){
+  const fill = document.getElementById("focusFill");
+  const btn = document.getElementById("nextBtn");
+  const state = document.getElementById("focusState");
+  const count = document.getElementById("focusCount");
+  clearInterval(focusTimer);
+  btn.disabled = true; btn.textContent = "hold…";
+  state.textContent = "focus";
+  let elapsed = 0;
+  fill.style.width = "0%";
+  focusTimer = setInterval(() => {
+    elapsed += 0.1;
+    const pct = Math.min(100, (elapsed/FORCED_SECONDS)*100);
+    fill.style.width = pct + "%";
+    const remain = Math.ceil(FORCED_SECONDS - elapsed);
+    count.textContent = remain > 0 ? remain + "s" : "";
+    if(elapsed >= FORCED_SECONDS){
+      clearInterval(focusTimer);
+      btn.disabled = false; btn.textContent = "Next →";
+      state.textContent = "open — or stay";
+      count.textContent = "";
+    }
+  }, 100);
+}
+
+function next(){
+  logCurrentCard(Date.now());
+  idx++;
+  renderCard();
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// ---- scorecard ----
+function openStats(){
+  const log = loadLog();
+  const days = new Set(log.map(s=>s.day)).size;
+  const voluntary = Math.round(log.reduce((a,s)=>a+(s.voluntarySec||0),0)/60);
+  const worth = log.filter(s=>s.verdict==="worth").length;
+  const sessions = log.length;
+  const list = document.getElementById("statsList");
+  list.innerHTML = `
+    <div class="stat-row"><span class="k">days opened (target 7 / 10)</span><span class="v">${days}<small> /10</small></span></div>
+    <div class="stat-row"><span class="k">sessions</span><span class="v">${sessions}</span></div>
+    <div class="stat-row"><span class="k">voluntary minutes (past the timer)</span><span class="v">${voluntary}<small> min</small></span></div>
+    <div class="stat-row"><span class="k">"worth it" sessions</span><span class="v">${worth}</span></div>
+  `;
+  document.getElementById("statsOverlay").classList.add("show");
+}
+
+function exportCSV(){
+  const log = loadLog();
+  const head = "startISO,day,cards,durationSec,forcedSec,voluntarySec,verdict\n";
+  const rows = log.map(s=>[s.startISO,s.day,s.cards,s.durationSec,s.forcedSec,s.voluntarySec,s.verdict].join(",")).join("\n");
+  const blob = new Blob([head+rows], {type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "reading-room-log.csv";
+  a.click();
+}
+
+// ---- wire up ----
+document.getElementById("nextBtn").addEventListener("click", () => { if(!document.getElementById("nextBtn").disabled) next(); });
+document.getElementById("doneBtn").addEventListener("click", () => {
+  clearInterval(focusTimer);
+  document.getElementById("verdictOverlay").classList.add("show");
+});
+document.querySelectorAll(".verdict").forEach(b => b.addEventListener("click", () => {
+  endSession(b.dataset.v);
+  document.getElementById("verdictOverlay").classList.remove("show");
+  // restart a fresh session silently for next time the app is opened
+  location.reload();
+}));
+document.getElementById("statsBtn").addEventListener("click", openStats);
+document.getElementById("closeStats").addEventListener("click", () => document.getElementById("statsOverlay").classList.remove("show"));
+document.getElementById("exportBtn").addEventListener("click", exportCSV);
+document.getElementById("resetBtn").addEventListener("click", () => {
+  if(confirm("Erase all logged sessions? This can't be undone.")){ saveLog([]); openStats(); }
+});
+
+// ---- go ----
+(async function init(){
+  startSession();
+  await buildQueue();
+  document.getElementById("loading")?.remove();
+  renderCard();
+})();
+</script>
+</body>
+</html>
