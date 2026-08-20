@@ -32,6 +32,7 @@
     --meh:#7a7368;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  html{height:-webkit-fill-available}
   html,body{height:100%}
   body{
     background:var(--ink);
@@ -39,7 +40,7 @@
     font-family:"Newsreader",Georgia,serif;
     -webkit-font-smoothing:antialiased;
     display:flex;flex-direction:column;
-    height:100dvh;max-height:100dvh;overflow:hidden;
+    height:100dvh;min-height:-webkit-fill-available;max-height:100dvh;overflow:hidden;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .mono{font-family:"IBM Plex Mono",monospace}
