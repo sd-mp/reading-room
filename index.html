@@ -64,9 +64,10 @@
 
   /* card */
   main{flex:1 1 auto;min-height:0;overflow:hidden;padding:0}
-  .slides-track{display:flex;flex-direction:row;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .slides-track{height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .slides-track::-webkit-scrollbar{display:none}
-  .slide{min-width:100%;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start}
+  .slides-inner{display:flex;flex-direction:row;height:100%}
+  .slide{width:100vw;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;box-sizing:border-box}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
   .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
   .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88}
@@ -461,14 +462,14 @@ function renderCard(){
   const el = document.getElementById("card");
   const chunks = chunkExcerpt(item.excerpt, 120);
   const total = chunks.length;
-  el.innerHTML = chunks.map((chunk, i) => `
+  el.innerHTML = `<div class="slides-inner">` + chunks.map((chunk, i) => `
     <div class="slide">
       ${i===0 ? `<div class="eyebrow mono">${item.source}</div><h1 class="title">${escapeHtml(item.title)}</h1>` : ""}
       <div class="excerpt">${chunk.split(/\n\n+/).map(p=>`<p>${escapeHtml(p.trim())}</p>`).join("")}</div>
       ${i===total-1 && item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ""}
       ${total>1 ? `<div class="slide-hint">${i+1} / ${total}</div>` : ""}
     </div>
-  `).join("");
+  `).join("") + `</div>`;
   el.scrollLeft = 0;
   cardEnteredAt = Date.now();
   currentForced = forcedSecondsFor(item.excerpt);   // dwell scaled to this card's length
