@@ -233,8 +233,9 @@ async function fetchWithTimeout(url, ms=7000){
 }
 
 function cleanExcerpt(raw){
-  const tmp = document.createElement("div"); tmp.innerHTML = raw || "";
-  let t = (tmp.textContent || "").replace(/\s+/g," ").trim();
+  const tmp = document.createElement("div");
+  tmp.innerHTML = (raw || "").replace(/<\/?(p|br|li|h[1-6])[^>]*>/gi, "\n");
+  let t = (tmp.textContent || "").replace(/\n{3,}/g,"\n\n").replace(/[ \t]+/g," ").trim();
   if(t.length > 2600){
     t = t.slice(0,2600);
     const m = t.match(/^([\s\S]*[.!?])[^.!?]*$/);
@@ -430,14 +431,14 @@ function logCurrentCard(now){
 }
 
 function chunkExcerpt(text, wordsPerChunk){
-  const sentences = text.match(/[^.!?]*[.!?]+(?:\s|$)/g) || [text];
+  const paras = text.split(/\n\n+/).filter(Boolean);
   const chunks = []; let cur = []; let count = 0;
-  for(const s of sentences){
-    const w = s.trim().split(/\s+/).length;
-    if(count + w > wordsPerChunk && cur.length){ chunks.push(cur.join(" ").trim()); cur=[s]; count=w; }
-    else{ cur.push(s); count+=w; }
+  for(const p of paras){
+    const w = p.trim().split(/\s+/).length;
+    if(count + w > wordsPerChunk && cur.length){ chunks.push(cur.join("\n\n").trim()); cur=[p]; count=w; }
+    else{ cur.push(p); count+=w; }
   }
-  if(cur.length) chunks.push(cur.join(" ").trim());
+  if(cur.length) chunks.push(cur.join("\n\n").trim());
   return chunks.filter(Boolean);
 }
 
@@ -452,7 +453,7 @@ function renderCard(){
   el.innerHTML = chunks.map((chunk, i) => `
     <div class="slide">
       ${i===0 ? `<div class="eyebrow mono">${item.source}</div><h1 class="title">${escapeHtml(item.title)}</h1>` : ""}
-      <div class="excerpt"><p>${escapeHtml(chunk)}</p></div>
+      <div class="excerpt">${chunk.split(/\n\n+/).map(p=>`<p>${escapeHtml(p.trim())}</p>`).join("")}</div>
       ${i===total-1 && item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ""}
       ${total>1 ? `<div class="slide-hint">${i+1} / ${total}</div>` : ""}
     </div>
