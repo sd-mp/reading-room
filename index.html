@@ -62,12 +62,15 @@
   .focus-fill{height:100%;width:0%;background:var(--brass);transition:width .25s linear}
 
   /* card */
-  main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;padding:18px 22px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  main{flex:1 1 auto;min-height:0;display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:0;scrollbar-width:none}
+  main::-webkit-scrollbar{display:none}
+  .slide{min-width:100%;width:100%;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
   .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
   .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88}
   .excerpt p{margin-bottom:14px}
   .readmore{display:inline-block;margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.06em;color:var(--paper);border-bottom:1px solid var(--brass);padding-bottom:2px}
+  .slide-hint{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;color:var(--paper-dim);margin-top:auto;padding-top:12px;text-align:right}
 
   /* footer controls */
   footer{padding:14px 20px calc(18px + env(safe-area-inset-bottom));display:flex;gap:12px;align-items:center;border-top:1px solid var(--line)}
@@ -426,19 +429,35 @@ function logCurrentCard(now){
   cardEnteredAt = 0;
 }
 
+function chunkExcerpt(text, wordsPerChunk){
+  const sentences = text.match(/[^.!?]*[.!?]+(?:\s|$)/g) || [text];
+  const chunks = []; let cur = []; let count = 0;
+  for(const s of sentences){
+    const w = s.trim().split(/\s+/).length;
+    if(count + w > wordsPerChunk && cur.length){ chunks.push(cur.join(" ").trim()); cur=[s]; count=w; }
+    else{ cur.push(s); count+=w; }
+  }
+  if(cur.length) chunks.push(cur.join(" ").trim());
+  return chunks.filter(Boolean);
+}
+
 // ---- rendering ----
 function renderCard(){
   const item = pickNext();
   if(!item) return;                 // nothing to show (shouldn't happen once loaded)
   currentItem = item;
   const el = document.getElementById("card");
-  el.innerHTML = `
-    <div class="eyebrow mono">${item.source}</div>
-    <h1 class="title">${escapeHtml(item.title)}</h1>
-    <div class="excerpt"><p>${escapeHtml(item.excerpt)}</p></div>
-    ${item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ``}
-  `;
-  el.scrollTop = 0;
+  const chunks = chunkExcerpt(item.excerpt, 120);
+  const total = chunks.length;
+  el.innerHTML = chunks.map((chunk, i) => `
+    <div class="slide">
+      ${i===0 ? `<div class="eyebrow mono">${item.source}</div><h1 class="title">${escapeHtml(item.title)}</h1>` : ""}
+      <div class="excerpt"><p>${escapeHtml(chunk)}</p></div>
+      ${i===total-1 && item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ""}
+      ${total>1 ? `<div class="slide-hint">${i+1} / ${total}</div>` : ""}
+    </div>
+  `).join("");
+  el.scrollLeft = 0;
   cardEnteredAt = Date.now();
   currentForced = forcedSecondsFor(item.excerpt);   // dwell scaled to this card's length
   startFocusLock(currentForced);
