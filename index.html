@@ -373,7 +373,8 @@ async function loadFeedsProgressive(){
     fetchWikipedia(WIKI_COUNT),           // knowledge extracts
     ...ESSAY_FEEDS.map(f => fetchRSS(f)), // long-form ideas
   ];
-  const tasks = sources.map(p => p.then(items => {
+  const tasks = sources.map((p, i) => p.then(items => {
+    console.log("[RR] source", i, "loaded", items?.length ?? 0, "items");
     if(items && items.length){
       addItems(items);                         // drop into per-source buckets
       if(!firstRendered){
@@ -382,7 +383,7 @@ async function loadFeedsProgressive(){
         renderCard();                          // show the first card the moment anything lands
       }
     }
-  }).catch(() => {}));
+  }).catch(e => { console.warn("[RR] source", i, "failed:", e?.message); }));
   await Promise.allSettled(tasks);
   if(!firstRendered){                          // everything failed → show the built-in samples
     addItems(FALLBACK.slice());
