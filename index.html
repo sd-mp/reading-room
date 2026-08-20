@@ -186,6 +186,12 @@ const ESSAY_FEEDS = [
   { name: "Overcoming Bias",    url: "https://www.overcomingbias.com/feed" },
 ];
 
+const NEWS_FEEDS = [
+  { name: "Ars Technica",       url: "https://feeds.arstechnica.com/arstechnica/index" },
+  { name: "The Conversation",   url: "https://theconversation.com/us/articles.atom" },
+  { name: "ProPublica",         url: "https://www.propublica.org/feeds/propublica/main" },
+];
+
 /* The lock adapts to how long the card actually takes to read.
    It's derived from the word count shown, clamped between a floor and a ceiling —
    so you can't skip before you've had time to read, but you're never left waiting. */
@@ -382,6 +388,7 @@ async function loadFeedsProgressive(){
     fetchGuardian(),                      // current news, full text
     fetchWikipedia(WIKI_COUNT),           // knowledge extracts
     ...ESSAY_FEEDS.map(f => fetchRSS(f)), // long-form ideas
+    ...NEWS_FEEDS.map(f => fetchRSS(f)),  // news with full text
   ];
   const tasks = sources.map((p, i) => p.then(items => {
     console.log("[RR] source", i, "loaded", items?.length ?? 0, "items");
