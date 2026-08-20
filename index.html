@@ -144,17 +144,23 @@
 
 <script>
 /* ============================================================
-   EDIT YOUR FEEDS HERE — any RSS links across topics you like.
-   Keep it to 3–5. Variety matters more than volume.
+   SOURCES
+   • Current news  → The Guardian API (returns full article text)
+   • Knowledge     → Wikipedia article extracts
+   • Ideas         → full-text essay feeds
    ============================================================ */
-const FEEDS = [
-  { name: "Aeon",          url: "https://aeon.co/feed.rss" },
-  { name: "Quanta",        url: "https://www.quantamagazine.org/feed/" },
-  { name: "Atlas Obscura", url: "https://www.atlasobscura.com/feeds/latest" },
-  { name: "BBC World",     url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
-  { name: "TechCrunch",    url: "https://techcrunch.com/feed/" },
-  { name: "Guardian Biz",  url: "https://www.theguardian.com/uk/business/rss" },
-  { name: "BBC Sport",     url: "https://feeds.bbci.co.uk/sport/rss.xml" },
+// Guardian free key. "test" works for light personal use straight away.
+// If news stops loading, get your own free key (2 min, no card) at
+// https://open-platform.theguardian.com/access/ and paste it below.
+const GUARDIAN_KEY = "test";
+
+// How many Wikipedia knowledge cards to pull per load.
+const WIKI_COUNT = 8;
+
+// Essay / long-read feeds — full-text sources only, no headline teasers.
+const ESSAY_FEEDS = [
+  { name: "Aeon",            url: "https://aeon.co/feed.rss" },
+  { name: "The Marginalian", url: "https://www.themarginalian.org/feed/" },
 ];
 
 /* The lock adapts to how long the card actually takes to read.
@@ -220,7 +226,7 @@ function forcedSecondsFor(text){
 
 function pickLonger(a, b){ a = a || ""; b = b || ""; return a.length >= b.length ? a : b; }
 
-// Method 1: rss2json — parses the feed server-side, returns clean JSON, no CORS issues
+// ---- RSS engine (essay feeds): rss2json first, then two CORS proxies ----
 async function viaRss2json(feed){
   const u = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(feed.url);
   const r = await fetchWithTimeout(u);
@@ -234,7 +240,6 @@ async function viaRss2json(feed){
   })).filter(x => x.title && x.excerpt);
 }
 
-// Methods 2 & 3: fetch raw feed through a CORS proxy, parse XML in the browser
 async function viaProxyXML(feed, proxyUrl, isAllOrigins){
   const r = await fetchWithTimeout(proxyUrl);
   const text = isAllOrigins ? (await r.json()).contents : await r.text();
@@ -244,21 +249,15 @@ async function viaProxyXML(feed, proxyUrl, isAllOrigins){
     const get = t => (n.querySelector(t)?.textContent || "").trim();
     let link = get("link");
     if(!link){ const l = n.querySelector("link"); link = l?.getAttribute("href") || "#"; }
-    // gather every candidate body (incl. namespaced content:encoded) and keep the longest
     const bodies = ["description","summary","content"].map(get);
     const enc = n.getElementsByTagName("content:encoded")[0];
     if(enc) bodies.push((enc.textContent || "").trim());
     const body = bodies.sort((a,b) => b.length - a.length)[0] || "";
-    return {
-      source: feed.name,
-      title: get("title"),
-      excerpt: cleanExcerpt(body),
-      link
-    };
+    return { source: feed.name, title: get("title"), excerpt: cleanExcerpt(body), link };
   }).filter(x => x.title && x.excerpt);
 }
 
-async function fetchFeed(feed){
+async function fetchRSS(feed){
   const enc = encodeURIComponent(feed.url);
   const attempts = [
     () => viaRss2json(feed),
@@ -267,22 +266,62 @@ async function fetchFeed(feed){
   ];
   for(const attempt of attempts){
     try { const items = await attempt(); if(items.length) return items; }
-    catch(e){ /* fall through to next method */ }
+    catch(e){ /* next method */ }
   }
   return [];
+}
+
+// ---- News: Guardian content API (full body text), routed through a CORS proxy ----
+async function fetchGuardian(){
+  const api = "https://content.guardianapis.com/search"
+    + "?order-by=newest&page-size=20&show-fields=bodyText"
+    + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
+  const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(api);
+  const r = await fetchWithTimeout(proxied, 8000);
+  const d = await r.json();
+  const results = (d && d.response && d.response.results) || [];
+  return results.map(a => ({
+    source: "Guardian · " + (a.sectionName || "News"),
+    title: (a.webTitle || "").trim(),
+    excerpt: cleanExcerpt((a.fields && a.fields.bodyText) || ""),
+    link: a.webUrl || "#"
+  })).filter(x => x.title && x.excerpt);
+}
+
+// ---- Knowledge: Wikipedia random article extracts (CORS-enabled, no key) ----
+async function fetchWikipedia(n){
+  const one = async () => {
+    const r = await fetchWithTimeout("https://en.wikipedia.org/api/rest_v1/page/random/summary", 7000);
+    const d = await r.json();
+    if(!d.extract) throw new Error("wiki");
+    return {
+      source: "Wikipedia",
+      title: (d.title || "").trim(),
+      excerpt: cleanExcerpt(d.extract),
+      link: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) || "#"
+    };
+  };
+  const settled = await Promise.allSettled(Array.from({length:n}, one));
+  return settled.filter(s => s.status === "fulfilled").map(s => s.value)
+                .filter(x => x.title && x.excerpt && x.excerpt.split(/\s+/).length >= 25);
 }
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
 let firstRendered = false;
 async function loadFeedsProgressive(){
-  const tasks = FEEDS.map(f => fetchFeed(f).then(items => {
-    if(items.length){
-      queue = queue.concat(shuffle(items));   // append each feed's items as they arrive
+  const sources = [
+    fetchGuardian(),                      // current news, full text
+    fetchWikipedia(WIKI_COUNT),           // knowledge extracts
+    ...ESSAY_FEEDS.map(f => fetchRSS(f)), // long-form ideas
+  ];
+  const tasks = sources.map(p => p.then(items => {
+    if(items && items.length){
+      queue = queue.concat(shuffle(items));   // append each source's items as they arrive
       if(!firstRendered){
         firstRendered = true;
         document.getElementById("loading")?.remove();
-        renderCard();                          // show the very first card the moment anything lands
+        renderCard();                          // show the first card the moment anything lands
       }
     }
   }).catch(() => {}));
