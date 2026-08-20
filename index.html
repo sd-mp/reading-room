@@ -62,9 +62,10 @@
   .focus-fill{height:100%;width:0%;background:var(--brass);transition:width .25s linear}
 
   /* card */
-  main{flex:1 1 auto;min-height:0;display:flex;flex-direction:row;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:0;scrollbar-width:none}
-  main::-webkit-scrollbar{display:none}
-  .slide{min-width:100%;width:100%;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start}
+  main{flex:1 1 auto;min-height:0;overflow:hidden;padding:0}
+  .slides-track{display:flex;flex-direction:row;height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .slides-track::-webkit-scrollbar{display:none}
+  .slide{min-width:100%;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
   .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
   .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88}
@@ -125,8 +126,10 @@
     <div class="focus-track"><div class="focus-fill" id="focusFill"></div></div>
   </div>
 
-  <main id="card">
-    <div class="loading" id="loading">gathering a few things worth your attention…</div>
+  <main>
+    <div class="slides-track" id="card">
+      <div class="slide"><div class="loading" id="loading">gathering a few things worth your attention…</div></div>
+    </div>
   </main>
 
   <footer>
@@ -301,7 +304,7 @@ async function fetchRSS(feed){
 // ---- News: Guardian content API (full body text), routed through a CORS proxy ----
 async function fetchGuardian(){
   const api = "https://content.guardianapis.com/search"
-    + "?order-by=newest&page-size=20&show-fields=bodyText"
+    + "?order-by=newest&page-size=20&show-fields=body"
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
   const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(api);
   const r = await fetchWithTimeout(proxied, 8000);
@@ -310,7 +313,7 @@ async function fetchGuardian(){
   return results.map(a => ({
     source: "Guardian · " + (a.sectionName || "News"),
     title: (a.webTitle || "").trim(),
-    excerpt: cleanExcerpt((a.fields && a.fields.bodyText) || ""),
+    excerpt: cleanExcerpt((a.fields && a.fields.body) || ""),
     link: a.webUrl || "#"
   })).filter(x => x.title && x.excerpt);
 }
