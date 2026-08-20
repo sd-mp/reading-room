@@ -194,8 +194,12 @@ const FALLBACK = [
   { source:"Reading Room", title:"Grade honestly on day 10", excerpt:"Tap 'scorecard' any time. The number that matters most is voluntary minutes — time you spent beyond what the timer forced. That's the signal that this is a real want, not a manufactured one.", link:"#" },
 ];
 
-let queue = [];
-let idx = 0;
+let buckets = new Map();           // source group -> array of items
+let served = [];                   // items already shown, for recycling when all run out
+let rrOrder = [];                  // group keys in the order first seen (round-robin ring)
+let rrPtr = 0;                     // round-robin pointer
+let lastGroup = null;              // group of the card just shown (to avoid repeats)
+let currentItem = null;
 let session = null;
 let cardEnteredAt = 0;
 let focusTimer = null;
@@ -308,6 +312,43 @@ async function fetchWikipedia(n){
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
+// group cards by source so the picker can rotate between them
+// (all Guardian sections count as one group, so news doesn't dominate)
+function groupOf(source){ return /^Guardian/.test(source || "") ? "Guardian" : (source || "Other"); }
+
+function addItems(items){
+  for(const it of items){
+    const g = groupOf(it.source);
+    if(!buckets.has(g)){ buckets.set(g, []); if(!rrOrder.includes(g)) rrOrder.push(g); }
+    buckets.get(g).push(it);
+  }
+  for(const arr of buckets.values()) shuffle(arr);   // keep order fresh within each group
+}
+
+// pick the next card, rotating across groups and never repeating a group back-to-back
+function pickNext(){
+  const anyLeft = () => rrOrder.some(g => (buckets.get(g) || []).length);
+  if(!anyLeft()){                        // read everything → recycle what's been served
+    if(!served.length) return null;
+    const recycle = served; served = [];
+    addItems(recycle);
+    if(!anyLeft()) return null;
+  }
+  let chosen = null;
+  for(let step = 0; step < rrOrder.length; step++){
+    rrPtr = (rrPtr + 1) % rrOrder.length;
+    const g = rrOrder[rrPtr];
+    const bucket = buckets.get(g) || [];
+    if(bucket.length && (g !== lastGroup || countNonEmptyGroups() === 1)){ chosen = g; break; }
+  }
+  if(!chosen) chosen = rrOrder.find(g => (buckets.get(g) || []).length);  // fallback: any non-empty
+  const item = buckets.get(chosen).shift();
+  lastGroup = chosen;
+  if(item) served.push(item);
+  return item;
+}
+function countNonEmptyGroups(){ return rrOrder.filter(g => (buckets.get(g) || []).length).length; }
+
 let firstRendered = false;
 async function loadFeedsProgressive(){
   const sources = [
@@ -317,7 +358,7 @@ async function loadFeedsProgressive(){
   ];
   const tasks = sources.map(p => p.then(items => {
     if(items && items.length){
-      queue = queue.concat(shuffle(items));   // append each source's items as they arrive
+      addItems(items);                         // drop into per-source buckets
       if(!firstRendered){
         firstRendered = true;
         document.getElementById("loading")?.remove();
@@ -327,7 +368,7 @@ async function loadFeedsProgressive(){
   }).catch(() => {}));
   await Promise.allSettled(tasks);
   if(!firstRendered){                          // everything failed → show the built-in samples
-    queue = FALLBACK.slice();
+    addItems(FALLBACK.slice());
     firstRendered = true;
     document.getElementById("loading")?.remove();
     renderCard();
@@ -367,7 +408,9 @@ function logCurrentCard(now){
 
 // ---- rendering ----
 function renderCard(){
-  const item = queue[idx % queue.length];
+  const item = pickNext();
+  if(!item) return;                 // nothing to show (shouldn't happen once loaded)
+  currentItem = item;
   const el = document.getElementById("card");
   el.innerHTML = `
     <div class="eyebrow mono">${item.source}</div>
@@ -408,8 +451,7 @@ function startFocusLock(seconds){
 
 function next(){
   logCurrentCard(Date.now());
-  idx++;
-  renderCard();
+  renderCard();   // picker advances to a different source
 }
 
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
