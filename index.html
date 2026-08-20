@@ -157,7 +157,12 @@ const FEEDS = [
   { name: "BBC Sport",     url: "https://feeds.bbci.co.uk/sport/rss.xml" },
 ];
 
-const FORCED_SECONDS = 40;   // how long "Next" stays locked. Your core variable.
+/* The lock adapts to how long the card actually takes to read.
+   It's derived from the word count shown, clamped between a floor and a ceiling —
+   so you can't skip before you've had time to read, but you're never left waiting. */
+const READ_WPM     = 200;   // assumed reading speed (words per minute)
+const MIN_SECONDS  = 15;    // floor: enough to stop reflexive skipping on short items
+const MAX_SECONDS  = 90;    // ceiling: never force a longer dwell than this
 /* ============================================================ */
 
 // ---- tiny storage shim: real persistence when hosted; in-memory fallback in sandboxed previews ----
@@ -188,35 +193,106 @@ let idx = 0;
 let session = null;
 let cardEnteredAt = 0;
 let focusTimer = null;
+let currentForced = MIN_SECONDS;   // forced dwell for the card currently shown
 
-// ---- feed fetching via a keyless CORS proxy + in-browser XML parse ----
-async function fetchFeed(feed){
-  const proxy = "https://api.allorigins.win/get?url=" + encodeURIComponent(feed.url);
-  const res = await fetch(proxy);
-  const data = await res.json();
-  const xml = new DOMParser().parseFromString(data.contents, "text/xml");
+// ---- feed fetching: try a purpose-built RSS service first, then two CORS proxies, all with a timeout ----
+async function fetchWithTimeout(url, ms=7000){
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { signal: ctrl.signal }); }
+  finally { clearTimeout(id); }
+}
+
+function cleanExcerpt(raw){
+  const tmp = document.createElement("div"); tmp.innerHTML = raw || "";
+  let t = (tmp.textContent || "").replace(/\s+/g," ").trim();
+  // keep enough text to fill up to the 90s ceiling (~300 words); trim only very long bodies
+  if(t.length > 2600) t = t.slice(0,2600).replace(/\s\S*$/,"") + "…";
+  return t;
+}
+
+// forced dwell for a card, based on the actual words shown (never longer than the text)
+function forcedSecondsFor(text){
+  const words = (text.match(/\S+/g) || []).length;
+  const est = Math.round((words / READ_WPM) * 60);
+  return Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, est));
+}
+
+function pickLonger(a, b){ a = a || ""; b = b || ""; return a.length >= b.length ? a : b; }
+
+// Method 1: rss2json — parses the feed server-side, returns clean JSON, no CORS issues
+async function viaRss2json(feed){
+  const u = "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(feed.url);
+  const r = await fetchWithTimeout(u);
+  const d = await r.json();
+  if(d.status !== "ok" || !Array.isArray(d.items)) throw new Error("rss2json");
+  return d.items.slice(0,12).map(it => ({
+    source: feed.name,
+    title: (it.title || "").trim(),
+    excerpt: cleanExcerpt(pickLonger(it.content, it.description)),
+    link: it.link || "#"
+  })).filter(x => x.title && x.excerpt);
+}
+
+// Methods 2 & 3: fetch raw feed through a CORS proxy, parse XML in the browser
+async function viaProxyXML(feed, proxyUrl, isAllOrigins){
+  const r = await fetchWithTimeout(proxyUrl);
+  const text = isAllOrigins ? (await r.json()).contents : await r.text();
+  const xml = new DOMParser().parseFromString(text, "text/xml");
   const nodes = [...xml.querySelectorAll("item"), ...xml.querySelectorAll("entry")];
-  return nodes.slice(0, 12).map(n => {
+  return nodes.slice(0,12).map(n => {
     const get = t => (n.querySelector(t)?.textContent || "").trim();
     let link = get("link");
     if(!link){ const l = n.querySelector("link"); link = l?.getAttribute("href") || "#"; }
-    const raw = get("description") || get("summary") || get("content") || "";
-    const tmp = document.createElement("div"); tmp.innerHTML = raw;
-    let excerpt = (tmp.textContent || "").replace(/\s+/g," ").trim();
-    if(excerpt.length > 460) excerpt = excerpt.slice(0,460).replace(/\s\S*$/,"") + "…";
-    return { source: feed.name, title: get("title"), excerpt, link };
+    // gather every candidate body (incl. namespaced content:encoded) and keep the longest
+    const bodies = ["description","summary","content"].map(get);
+    const enc = n.getElementsByTagName("content:encoded")[0];
+    if(enc) bodies.push((enc.textContent || "").trim());
+    const body = bodies.sort((a,b) => b.length - a.length)[0] || "";
+    return {
+      source: feed.name,
+      title: get("title"),
+      excerpt: cleanExcerpt(body),
+      link
+    };
   }).filter(x => x.title && x.excerpt);
+}
+
+async function fetchFeed(feed){
+  const enc = encodeURIComponent(feed.url);
+  const attempts = [
+    () => viaRss2json(feed),
+    () => viaProxyXML(feed, "https://corsproxy.io/?url=" + enc, false),
+    () => viaProxyXML(feed, "https://api.allorigins.win/get?url=" + enc, true),
+  ];
+  for(const attempt of attempts){
+    try { const items = await attempt(); if(items.length) return items; }
+    catch(e){ /* fall through to next method */ }
+  }
+  return [];
 }
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-async function buildQueue(){
-  const results = await Promise.allSettled(FEEDS.map(fetchFeed));
-  let items = [];
-  results.forEach(r => { if(r.status==="fulfilled") items = items.concat(r.value); });
-  if(items.length < 3) items = FALLBACK.slice();
-  queue = shuffle(items);
-  idx = 0;
+let firstRendered = false;
+async function loadFeedsProgressive(){
+  const tasks = FEEDS.map(f => fetchFeed(f).then(items => {
+    if(items.length){
+      queue = queue.concat(shuffle(items));   // append each feed's items as they arrive
+      if(!firstRendered){
+        firstRendered = true;
+        document.getElementById("loading")?.remove();
+        renderCard();                          // show the very first card the moment anything lands
+      }
+    }
+  }).catch(() => {}));
+  await Promise.allSettled(tasks);
+  if(!firstRendered){                          // everything failed → show the built-in samples
+    queue = FALLBACK.slice();
+    firstRendered = true;
+    document.getElementById("loading")?.remove();
+    renderCard();
+  }
 }
 
 // ---- session lifecycle ----
@@ -246,7 +322,7 @@ function logCurrentCard(now){
   if(!session || !cardEnteredAt) return;
   const spent = Math.round((now - cardEnteredAt)/1000);
   session.cards.push(spent);
-  session.forcedTotal += FORCED_SECONDS;
+  session.forcedTotal += currentForced;
   cardEnteredAt = 0;
 }
 
@@ -262,10 +338,11 @@ function renderCard(){
   `;
   el.scrollTop = 0;
   cardEnteredAt = Date.now();
-  startFocusLock();
+  currentForced = forcedSecondsFor(item.excerpt);   // dwell scaled to this card's length
+  startFocusLock(currentForced);
 }
 
-function startFocusLock(){
+function startFocusLock(seconds){
   const fill = document.getElementById("focusFill");
   const btn = document.getElementById("nextBtn");
   const state = document.getElementById("focusState");
@@ -277,11 +354,11 @@ function startFocusLock(){
   fill.style.width = "0%";
   focusTimer = setInterval(() => {
     elapsed += 0.1;
-    const pct = Math.min(100, (elapsed/FORCED_SECONDS)*100);
+    const pct = Math.min(100, (elapsed/seconds)*100);
     fill.style.width = pct + "%";
-    const remain = Math.ceil(FORCED_SECONDS - elapsed);
+    const remain = Math.ceil(seconds - elapsed);
     count.textContent = remain > 0 ? remain + "s" : "";
-    if(elapsed >= FORCED_SECONDS){
+    if(elapsed >= seconds){
       clearInterval(focusTimer);
       btn.disabled = false; btn.textContent = "Next →";
       state.textContent = "open — or stay";
@@ -346,11 +423,9 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 });
 
 // ---- go ----
-(async function init(){
+(function init(){
   startSession();
-  await buildQueue();
-  document.getElementById("loading")?.remove();
-  renderCard();
+  loadFeedsProgressive();   // renders the first card as soon as any feed responds
 })();
 </script>
 </body>
