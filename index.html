@@ -566,7 +566,7 @@ function startFocusLock(seconds){
     if(elapsed >= seconds){
       clearInterval(focusTimer);
       btn.disabled = false; btn.textContent = "Next →";
-      state.textContent = "open — or stay";
+      state.textContent = "";
       count.textContent = "";
     }
   }, 100);
