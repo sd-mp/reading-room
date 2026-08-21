@@ -128,7 +128,7 @@
   <header>
     <span class="brand">Reading Room</span>
     <div style="display:flex;gap:4px;align-items:center">
-      <button class="stat-btn" id="prefsBtn">⚙</button>
+      <button class="stat-btn" id="prefsBtn" style="font-size:16px">⚙</button>
       <button class="stat-btn" id="themeBtn">light</button>
       <button class="stat-btn" id="statsBtn">scorecard</button>
     </div>
@@ -538,7 +538,7 @@ function renderCard(){
   const total = chunks.length;
   el.innerHTML = `<div class="slides-inner">` + chunks.map((chunk, i) => `
     <div class="slide">
-      ${i===0 ? `<div class="eyebrow mono">${item.source}</div><h1 class="title">${escapeHtml(item.title)}</h1>` : ""}
+      ${i===0 ? `<div class="eyebrow mono">${item.source}</div><h1 class="title">${escapeHtml(item.title)}</h1>` : `<div style="height:28px;flex-shrink:0"></div>`}
       <div class="excerpt">${chunk.split(/\n\n+/).map(p=>`<p>${escapeHtml(p.trim())}</p>`).join("")}</div>
       ${i===total-1 && item.link && item.link!=="#" ? `<a class="readmore" href="${item.link}" target="_blank" rel="noopener">Read the full piece ↗</a>` : ""}
       ${total>1 ? `<div class="slide-hint">${i+1} / ${total}</div>` : ""}
