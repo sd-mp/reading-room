@@ -357,9 +357,10 @@ async function fetchRSS(feed){
 
 // ---- News: Guardian content API (full body text), routed through a CORS proxy ----
 async function fetchGuardian(section = null, category = "news"){
-  const endpoint = section ? section : "search";
-  const api = "https://content.guardianapis.com/" + endpoint
+  const sectionParam = section ? "&section=" + section : "";
+  const api = "https://content.guardianapis.com/search"
     + "?order-by=newest&page-size=20&show-fields=body"
+    + sectionParam
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
   const proxies = [
     "https://api.allorigins.win/get?url=" + encodeURIComponent(api),
@@ -454,11 +455,12 @@ function countNonEmptyGroups(){ return rrOrder.filter(g => (buckets.get(g) || []
 
 let firstRendered = false;
 async function loadFeedsProgressive(){
+  const delay = ms => new Promise(r => setTimeout(r, ms));
   const sources = [
     fetchGuardian(null,         "news"),
-    fetchGuardian("sport",      "sport"),
-    fetchGuardian("technology", "technology"),
-    fetchGuardian("business",   "business"),
+    delay(300).then(() => fetchGuardian("sport",      "sport")),
+    delay(600).then(() => fetchGuardian("technology", "technology")),
+    delay(900).then(() => fetchGuardian("business",   "business")),
     fetchWikipedia(WIKI_COUNT),
     ...ESSAY_FEEDS.map(f => fetchRSS(f)),
     ...NEWS_FEEDS.map(f => fetchRSS(f)),
