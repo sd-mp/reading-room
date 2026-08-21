@@ -10,10 +10,23 @@ A single-file web app that shows one piece of writing at a time and makes you si
 
 - One card at a time — a focus timer fills before you can move on
 - Dwell time is scaled to the card's length (~200 wpm), clamped to a 15s floor and 90s ceiling
-- Swipe right to read more of a long article
-- Sources rotate across: Guardian, Ars Technica, The Conversation, ProPublica, Wikipedia, The Marginalian, Astral Codex Ten, and Overcoming Bias
+- Long articles are paginated — swipe right to read more
+- Sources rotate by category so you get variety across types
 - Sessions are logged locally — opens, time per card, and a "worth it / meh" verdict
 - No notifications, no accounts, no algorithm
+
+## Categories & sources
+
+On first launch a picker lets you choose which categories appear in your feed. Tap ⚙ in the header to change them at any time.
+
+| Category | Sources |
+|---|---|
+| News | Guardian, Letters from an American, Popular Information |
+| Sport | Guardian Sport |
+| Technology | Guardian Technology, Ars Technica, MIT Technology Review, Platformer |
+| Business | Guardian Business, Fast Company, No Mercy No Malice |
+| Ideas & Essays | The Marginalian, Astral Codex Ten, Overcoming Bias |
+| Knowledge | Wikipedia, The Conversation, ProPublica |
 
 ## Running it
 
