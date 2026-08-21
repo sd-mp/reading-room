@@ -70,7 +70,7 @@
   .slide{width:100vw;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;box-sizing:border-box}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
   .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
-  .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88}
+  .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88;flex:1 1 auto;min-height:0;overflow:hidden}
   .excerpt p{margin-bottom:14px}
   .readmore{display:inline-block;margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.06em;color:var(--paper);border-bottom:1px solid var(--brass);padding-bottom:2px}
   .slide-hint{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;color:var(--paper-dim);margin-top:auto;padding-top:12px;text-align:right}
@@ -168,7 +168,7 @@
     <div class="panel" style="position:relative;max-height:88vh;overflow-y:auto">
       <button class="close-x" id="closePicker">×</button>
       <h2>What do you want to read?</h2>
-      <p>Tap to select your interests. Pick at least one.</p>
+      <p>Choose what you want to read. Pick at least one to get started.</p>
       <div class="cat-grid" id="catGrid"></div>
       <button class="start-btn" id="startBtn">Start reading</button>
     </div>
@@ -648,7 +648,7 @@ const catGrid       = document.getElementById("catGrid");
 const startBtn      = document.getElementById("startBtn");
 
 function renderPicker(){
-  const current = new Set(loadPrefs() || CATEGORIES.map(c=>c.id));
+  const current = new Set(loadPrefs() || []);
   catGrid.innerHTML = CATEGORIES.map(c => `
     <button class="cat-btn${current.has(c.id) ? " on" : ""}" data-id="${c.id}">
       <span class="cat-label">${c.label}</span>
