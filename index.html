@@ -346,7 +346,6 @@ async function fetchRSS(feed){
   const enc = encodeURIComponent(feed.url);
   const attempts = [
     () => viaRss2json(feed),
-    () => viaProxyXML(feed, "https://corsproxy.io/?url=" + enc, false),
     () => viaProxyXML(feed, "https://api.allorigins.win/get?url=" + enc, true),
   ];
   for(const attempt of attempts){
@@ -363,7 +362,6 @@ async function fetchGuardian(section = null, category = "news"){
     + "?order-by=newest&page-size=20&show-fields=body"
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
   const proxies = [
-    "https://corsproxy.io/?url=" + encodeURIComponent(api),
     "https://api.allorigins.win/get?url=" + encodeURIComponent(api),
   ];
   let d = null;
