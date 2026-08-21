@@ -362,15 +362,15 @@ async function fetchGuardian(section = null, category = "news"){
     + "?order-by=newest&page-size=20&show-fields=body"
     + sectionParam
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
-  const proxies = [
-    "https://api.allorigins.win/get?url=" + encodeURIComponent(api),
+  const attempts = [
+    () => fetchWithTimeout(api, 8000).then(r => r.json()),
+    () => fetchWithTimeout("https://api.allorigins.win/get?url=" + encodeURIComponent(api), 8000)
+            .then(r => r.json()).then(j => j.contents ? JSON.parse(j.contents) : j),
   ];
   let d = null;
-  for(const url of proxies){
+  for(const attempt of attempts){
     try{
-      const r = await fetchWithTimeout(url, 8000);
-      const json = await r.json();
-      d = json.contents ? JSON.parse(json.contents) : json;
+      d = await attempt();
       if(d && d.response) break;
     } catch(e){ d = null; }
   }
