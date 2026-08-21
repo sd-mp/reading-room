@@ -83,7 +83,7 @@
     padding:16px;border:1px solid var(--line);border-radius:2px;
     transition:opacity .3s,background .2s;
   }
-  .next:enabled:hover{background:#232b37}
+  .next:enabled:hover{background:var(--line)}
   .next:disabled{opacity:.4;cursor:not-allowed}
   .done{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--paper-dim);padding:16px 6px}
   .done:hover{color:var(--paper)}
@@ -112,12 +112,23 @@
   .close-x{position:absolute;top:16px;right:18px;font-family:"IBM Plex Mono",monospace;font-size:18px;color:var(--paper-dim)}
 
   .loading{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.08em;color:var(--paper-dim);text-align:center;padding:40px}
+
+  /* category picker */
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+  .cat-btn{padding:14px 12px;border:1px solid var(--line);border-radius:2px;text-align:left;background:none;color:var(--paper);cursor:pointer;transition:border-color .15s,background .15s}
+  .cat-btn .cat-label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:5px}
+  .cat-btn .cat-desc{font-size:12px;color:var(--paper-dim);line-height:1.4;font-family:"IBM Plex Mono",monospace}
+  .cat-btn.on{border-color:var(--brass);background:rgba(200,162,75,.08)}
+  .cat-btn.on .cat-label{color:var(--brass)}
+  .start-btn{width:100%;padding:16px;background:var(--brass);color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.1em;text-transform:uppercase;border-radius:2px;border:none;cursor:pointer;font-weight:500}
+  .start-btn:disabled{opacity:.35;cursor:not-allowed}
 </style>
 </head>
 <body>
   <header>
     <span class="brand">Reading Room</span>
     <div style="display:flex;gap:4px;align-items:center">
+      <button class="stat-btn" id="prefsBtn">⚙</button>
       <button class="stat-btn" id="themeBtn">light</button>
       <button class="stat-btn" id="statsBtn">scorecard</button>
     </div>
@@ -141,13 +152,25 @@
 
   <!-- worth-it overlay -->
   <div class="overlay" id="verdictOverlay">
-    <div class="panel">
+    <div class="panel" style="position:relative">
+      <button class="close-x" id="closeVerdict">×</button>
       <h2>Was this worth it?</h2>
       <p>One honest tap. This is the whole point of the test — did you get something you actually wanted?</p>
       <div class="verdict-row">
         <button class="verdict worth" data-v="worth">Worth it</button>
         <button class="verdict meh" data-v="meh">Meh</button>
       </div>
+    </div>
+  </div>
+
+  <!-- category picker overlay -->
+  <div class="overlay" id="pickerOverlay">
+    <div class="panel" style="position:relative;max-height:88vh;overflow-y:auto">
+      <button class="close-x" id="closePicker">×</button>
+      <h2>What do you want to read?</h2>
+      <p>Tap to select your interests. Pick at least one.</p>
+      <div class="cat-grid" id="catGrid"></div>
+      <button class="start-btn" id="startBtn">Start reading</button>
     </div>
   </div>
 
@@ -180,17 +203,31 @@ const GUARDIAN_KEY = "test";
 // How many Wikipedia knowledge cards to pull per load.
 const WIKI_COUNT = 8;
 
-// Essay / long-read feeds — full-text sources only, no headline teasers.
+const CATEGORIES = [
+  { id: "news",       label: "News",           desc: "Current affairs & investigative journalism" },
+  { id: "sport",      label: "Sport",          desc: "Sports news and analysis" },
+  { id: "technology", label: "Technology",     desc: "Tech industry and innovation" },
+  { id: "business",   label: "Business",       desc: "Business, economics & strategy" },
+  { id: "ideas",      label: "Ideas & Essays", desc: "Long-form thinking and culture" },
+  { id: "knowledge",  label: "Knowledge",      desc: "Science, history & academic writing" },
+];
+
 const ESSAY_FEEDS = [
-  { name: "The Marginalian",    url: "https://www.themarginalian.org/feed/" },
-  { name: "Astral Codex Ten",   url: "https://astralcodexten.substack.com/feed" },
-  { name: "Overcoming Bias",    url: "https://www.overcomingbias.com/feed" },
+  { name: "The Marginalian",    url: "https://www.themarginalian.org/feed/",              category: "ideas" },
+  { name: "Astral Codex Ten",   url: "https://astralcodexten.substack.com/feed",          category: "ideas" },
+  { name: "Overcoming Bias",    url: "https://www.overcomingbias.com/feed",               category: "ideas" },
 ];
 
 const NEWS_FEEDS = [
-  { name: "Ars Technica",       url: "https://feeds.arstechnica.com/arstechnica/index" },
-  { name: "The Conversation",   url: "https://theconversation.com/us/articles.atom" },
-  { name: "ProPublica",         url: "https://www.propublica.org/feeds/propublica/main" },
+  { name: "Ars Technica",             url: "https://feeds.arstechnica.com/arstechnica/index",     category: "technology" },
+  { name: "The Conversation",         url: "https://theconversation.com/us/articles.atom",         category: "knowledge" },
+  { name: "ProPublica",               url: "https://www.propublica.org/feeds/propublica/main",     category: "knowledge" },
+  { name: "MIT Technology Review",    url: "https://www.technologyreview.com/feed/",               category: "technology" },
+  { name: "Fast Company",             url: "https://www.fastcompany.com/rss",                      category: "business" },
+  { name: "Letters from an American", url: "https://heathercoxrichardson.substack.com/feed",       category: "news" },
+  { name: "Platformer",               url: "https://www.platformer.news/feed",                     category: "technology" },
+  { name: "Popular Information",      url: "https://popular.info/feed",                            category: "news" },
+  { name: "No Mercy No Malice",       url: "https://www.profgalloway.com/feed",                    category: "business" },
 ];
 
 /* The lock adapts to how long the card actually takes to read.
@@ -213,27 +250,33 @@ const store = (() => {
   };
 })();
 
-const LOG_KEY = "rr_sessions_v1";
+const LOG_KEY   = "rr_sessions_v1";
+const PREFS_KEY = "rr_categories";
 function loadLog(){ try{ return JSON.parse(store.get(LOG_KEY)||"[]"); }catch(e){ return []; } }
 function saveLog(l){ store.set(LOG_KEY, JSON.stringify(l)); }
+function loadPrefs(){ try{ const p=store.get(PREFS_KEY); return p ? JSON.parse(p) : null; }catch(e){ return null; } }
+function savePrefs(cats){ store.set(PREFS_KEY, JSON.stringify(cats)); }
+function enabledSet(){ return new Set(loadPrefs() || CATEGORIES.map(c=>c.id)); }
 
 // ---- fallback cards so the screen is never dead (e.g. in a preview that blocks network) ----
 const FALLBACK = [
-  { source:"Reading Room", title:"This is a sample card", excerpt:"If you're seeing sample cards, live articles couldn't load here — that's normal inside a preview. Once you host the file (see the chat), your real feeds appear. The mechanic below is exactly what you're testing: the line at the top must fill before you can move on.", link:"#" },
-  { source:"Reading Room", title:"Sit with one thing", excerpt:"The whole experiment is whether you'll stay past the point you're allowed to leave. Don't rush to the next card. Notice if you *want* to keep going, or if you're just filling time.", link:"#" },
-  { source:"Reading Room", title:"Grade honestly on day 10", excerpt:"Tap 'scorecard' any time. The number that matters most is voluntary minutes — time you spent beyond what the timer forced. That's the signal that this is a real want, not a manufactured one.", link:"#" },
+  { source:"Reading Room", category:"news", title:"This is a sample card", excerpt:"If you're seeing sample cards, live articles couldn't load here — that's normal inside a preview. Once you host the file (see the chat), your real feeds appear. The mechanic below is exactly what you're testing: the line at the top must fill before you can move on.", link:"#" },
+  { source:"Reading Room", category:"news", title:"Sit with one thing", excerpt:"The whole experiment is whether you'll stay past the point you're allowed to leave. Don't rush to the next card. Notice if you *want* to keep going, or if you're just filling time.", link:"#" },
+  { source:"Reading Room", category:"news", title:"Grade honestly on day 10", excerpt:"Tap 'scorecard' any time. The number that matters most is voluntary minutes — time you spent beyond what the timer forced. That's the signal that this is a real want, not a manufactured one.", link:"#" },
 ];
 
-let buckets = new Map();           // source group -> array of items
-let served = [];                   // items already shown, for recycling when all run out
-let rrOrder = [];                  // group keys in the order first seen (round-robin ring)
-let rrPtr = 0;                     // round-robin pointer
-let lastGroup = null;              // group of the card just shown (to avoid repeats)
+let allItems    = [];              // every fetched item, unfiltered — used to rebuild buckets when prefs change
+let buckets     = new Map();      // category -> array of items
+let served      = [];             // items shown, for recycling when all run out
+let rrOrder     = [];             // category keys in round-robin order
+let rrPtr       = 0;
+let lastGroup   = null;
 let currentItem = null;
-let session = null;
+let session     = null;
 let cardEnteredAt = 0;
-let focusTimer = null;
-let currentForced = MIN_SECONDS;   // forced dwell for the card currently shown
+let focusTimer  = null;
+let currentForced = MIN_SECONDS;
+let pickerOpen  = false;          // true while the category picker is showing
 
 // ---- feed fetching: try a purpose-built RSS service first, then two CORS proxies, all with a timeout ----
 async function fetchWithTimeout(url, ms=7000){
@@ -274,7 +317,8 @@ async function viaRss2json(feed){
     source: feed.name,
     title: (it.title || "").trim(),
     excerpt: cleanExcerpt(pickLonger(it.content, it.description)),
-    link: it.link || "#"
+    link: it.link || "#",
+    category: feed.category,
   })).filter(x => x.title && x.excerpt);
 }
 
@@ -291,7 +335,7 @@ async function viaProxyXML(feed, proxyUrl, isAllOrigins){
     const enc = n.getElementsByTagName("content:encoded")[0];
     if(enc) bodies.push((enc.textContent || "").trim());
     const body = bodies.sort((a,b) => b.length - a.length)[0] || "";
-    return { source: feed.name, title: get("title"), excerpt: cleanExcerpt(body), link };
+    return { source: feed.name, title: get("title"), excerpt: cleanExcerpt(body), link, category: feed.category };
   }).filter(x => x.title && x.excerpt);
 }
 
@@ -310,8 +354,9 @@ async function fetchRSS(feed){
 }
 
 // ---- News: Guardian content API (full body text), routed through a CORS proxy ----
-async function fetchGuardian(){
-  const api = "https://content.guardianapis.com/search"
+async function fetchGuardian(section = null, category = "news"){
+  const endpoint = section ? section : "search";
+  const api = "https://content.guardianapis.com/" + endpoint
     + "?order-by=newest&page-size=20&show-fields=body"
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
   const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(api);
@@ -322,7 +367,8 @@ async function fetchGuardian(){
     source: "Guardian · " + (a.sectionName || "News"),
     title: (a.webTitle || "").trim(),
     excerpt: cleanExcerpt((a.fields && a.fields.body) || ""),
-    link: a.webUrl || "#"
+    link: a.webUrl || "#",
+    category,
   })).filter(x => x.title && x.excerpt);
 }
 
@@ -336,7 +382,8 @@ async function fetchWikipedia(n){
       source: "Wikipedia",
       title: (d.title || "").trim(),
       excerpt: cleanExcerpt(d.extract),
-      link: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) || "#"
+      link: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) || "#",
+      category: "knowledge",
     };
   };
   const settled = await Promise.allSettled(Array.from({length:n}, one));
@@ -346,17 +393,28 @@ async function fetchWikipedia(n){
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-// group cards by source so the picker can rotate between them
-// (all Guardian sections count as one group, so news doesn't dominate)
-function groupOf(source){ return /^Guardian/.test(source || "") ? "Guardian" : (source || "Other"); }
+function groupOf(item){ return item.category || "other"; }
 
-function addItems(items){
+function populateBuckets(items){
+  const enabled = enabledSet();
   for(const it of items){
-    const g = groupOf(it.source);
+    if(!enabled.has(it.category)) continue;
+    const g = groupOf(it);
     if(!buckets.has(g)){ buckets.set(g, []); if(!rrOrder.includes(g)) rrOrder.push(g); }
     buckets.get(g).push(it);
   }
-  for(const arr of buckets.values()) shuffle(arr);   // keep order fresh within each group
+  for(const arr of buckets.values()) shuffle(arr);
+}
+
+function addItems(items){
+  allItems.push(...items);
+  if(pickerOpen) return;   // accumulate only; buckets populated on picker confirm
+  populateBuckets(items);
+}
+
+function applyPrefs(){
+  buckets = new Map(); rrOrder = []; rrPtr = 0; lastGroup = null; served = [];
+  populateBuckets(allItems);
 }
 
 // pick the next card, rotating across groups and never repeating a group back-to-back
@@ -386,10 +444,13 @@ function countNonEmptyGroups(){ return rrOrder.filter(g => (buckets.get(g) || []
 let firstRendered = false;
 async function loadFeedsProgressive(){
   const sources = [
-    fetchGuardian(),                      // current news, full text
-    fetchWikipedia(WIKI_COUNT),           // knowledge extracts
-    ...ESSAY_FEEDS.map(f => fetchRSS(f)), // long-form ideas
-    ...NEWS_FEEDS.map(f => fetchRSS(f)),  // news with full text
+    fetchGuardian(null,         "news"),
+    fetchGuardian("sport",      "sport"),
+    fetchGuardian("technology", "technology"),
+    fetchGuardian("business",   "business"),
+    fetchWikipedia(WIKI_COUNT),
+    ...ESSAY_FEEDS.map(f => fetchRSS(f)),
+    ...NEWS_FEEDS.map(f => fetchRSS(f)),
   ];
   const tasks = sources.map((p, i) => p.then(items => {
     console.log("[RR] source", i, "loaded", items?.length ?? 0, "items");
@@ -538,14 +599,17 @@ function exportCSV(){
 
 // ---- wire up ----
 document.getElementById("nextBtn").addEventListener("click", () => { if(!document.getElementById("nextBtn").disabled) next(); });
+const verdictOverlay = document.getElementById("verdictOverlay");
+function closeVerdictOverlay(){ verdictOverlay.classList.remove("show"); }
 document.getElementById("doneBtn").addEventListener("click", () => {
   clearInterval(focusTimer);
-  document.getElementById("verdictOverlay").classList.add("show");
+  verdictOverlay.classList.add("show");
 });
+document.getElementById("closeVerdict").addEventListener("click", closeVerdictOverlay);
+verdictOverlay.addEventListener("click", e => { if(e.target === verdictOverlay) closeVerdictOverlay(); });
 document.querySelectorAll(".verdict").forEach(b => b.addEventListener("click", () => {
   endSession(b.dataset.v);
-  document.getElementById("verdictOverlay").classList.remove("show");
-  // restart a fresh session silently for next time the app is opened
+  closeVerdictOverlay();
   location.reload();
 }));
 document.getElementById("statsBtn").addEventListener("click", openStats);
@@ -565,10 +629,71 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   if(confirm("Erase all logged sessions? This can't be undone.")){ saveLog([]); openStats(); }
 });
 
+// ---- category picker ----
+const pickerOverlay = document.getElementById("pickerOverlay");
+const catGrid       = document.getElementById("catGrid");
+const startBtn      = document.getElementById("startBtn");
+
+function renderPicker(){
+  const current = new Set(loadPrefs() || CATEGORIES.map(c=>c.id));
+  catGrid.innerHTML = CATEGORIES.map(c => `
+    <button class="cat-btn${current.has(c.id) ? " on" : ""}" data-id="${c.id}">
+      <span class="cat-label">${c.label}</span>
+      <span class="cat-desc">${c.desc}</span>
+    </button>
+  `).join("");
+  catGrid.querySelectorAll(".cat-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.classList.toggle("on");
+      startBtn.disabled = catGrid.querySelectorAll(".cat-btn.on").length === 0;
+    });
+  });
+  startBtn.disabled = catGrid.querySelectorAll(".cat-btn.on").length === 0;
+}
+
+function openPicker(){
+  renderPicker();
+  pickerOverlay.classList.add("show");
+  pickerOpen = true;
+}
+
+function confirmPicker(){
+  const selected = [...catGrid.querySelectorAll(".cat-btn.on")].map(b => b.dataset.id);
+  if(!selected.length) return;
+  savePrefs(selected);
+  pickerOpen = false;
+  pickerOverlay.classList.remove("show");
+  applyPrefs();
+  if(!firstRendered && buckets.size > 0){
+    firstRendered = true;
+    document.getElementById("loading")?.remove();
+    renderCard();
+  }
+}
+
+function dismissPicker(){
+  // on first launch with no saved prefs, default to all categories
+  if(!loadPrefs()) savePrefs(CATEGORIES.map(c=>c.id));
+  pickerOpen = false;
+  pickerOverlay.classList.remove("show");
+  applyPrefs();
+  if(!firstRendered && buckets.size > 0){
+    firstRendered = true;
+    document.getElementById("loading")?.remove();
+    renderCard();
+  }
+}
+
+startBtn.addEventListener("click", confirmPicker);
+document.getElementById("closePicker").addEventListener("click", dismissPicker);
+pickerOverlay.addEventListener("click", e => { if(e.target === pickerOverlay) dismissPicker(); });
+document.getElementById("prefsBtn").addEventListener("click", openPicker);
+
 // ---- go ----
 (function init(){
   startSession();
-  loadFeedsProgressive();   // renders the first card as soon as any feed responds
+  loadFeedsProgressive();   // starts fetching immediately in the background
+  if(!loadPrefs()){ openPicker(); }  // first launch: show picker on top of loading state
 })();
 </script>
 </body>
