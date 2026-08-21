@@ -674,9 +674,11 @@ function confirmPicker(){
   pickerOpen = false;
   pickerOverlay.classList.remove("show");
   applyPrefs();
-  if(!firstRendered && buckets.size > 0){
+  clearInterval(focusTimer);
+  if(buckets.size > 0){
     firstRendered = true;
     document.getElementById("loading")?.remove();
+    logCurrentCard(Date.now());
     renderCard();
   }
 }
