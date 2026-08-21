@@ -359,9 +359,19 @@ async function fetchGuardian(section = null, category = "news"){
   const api = "https://content.guardianapis.com/" + endpoint
     + "?order-by=newest&page-size=20&show-fields=body"
     + "&api-key=" + encodeURIComponent(GUARDIAN_KEY);
-  const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(api);
-  const r = await fetchWithTimeout(proxied, 8000);
-  const d = await r.json();
+  const proxies = [
+    "https://corsproxy.io/?url=" + encodeURIComponent(api),
+    "https://api.allorigins.win/get?url=" + encodeURIComponent(api),
+  ];
+  let d = null;
+  for(const url of proxies){
+    try{
+      const r = await fetchWithTimeout(url, 8000);
+      const json = await r.json();
+      d = json.contents ? JSON.parse(json.contents) : json;
+      if(d && d.response) break;
+    } catch(e){ d = null; }
+  }
   const results = (d && d.response && d.response.results) || [];
   return results.map(a => ({
     source: "Guardian · " + (a.sectionName || "News"),
@@ -455,16 +465,16 @@ async function loadFeedsProgressive(){
   const tasks = sources.map((p, i) => p.then(items => {
     console.log("[RR] source", i, "loaded", items?.length ?? 0, "items");
     if(items && items.length){
-      addItems(items);                         // drop into per-source buckets
-      if(!firstRendered){
+      addItems(items);
+      if(!firstRendered && !pickerOpen){
         firstRendered = true;
         document.getElementById("loading")?.remove();
-        renderCard();                          // show the first card the moment anything lands
+        renderCard();
       }
     }
   }).catch(e => { console.warn("[RR] source", i, "failed:", e?.message); }));
   await Promise.allSettled(tasks);
-  if(!firstRendered){                          // everything failed → show the built-in samples
+  if(!firstRendered && !pickerOpen){
     addItems(FALLBACK.slice());
     firstRendered = true;
     document.getElementById("loading")?.remove();
