@@ -63,11 +63,11 @@
   .focus-fill{height:100%;width:0%;background:var(--brass);transition:width .25s linear}
 
   /* card */
-  main{flex:1 1 auto;min-height:0;overflow:hidden;padding:0}
-  .slides-track{height:100%;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  main{flex:1 1 auto;min-height:0;overflow:hidden;padding:0;display:flex;flex-direction:column}
+  .slides-track{flex:1 1 auto;min-height:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .slides-track::-webkit-scrollbar{display:none}
   .slides-inner{display:flex;flex-direction:row;height:100%}
-  .slide{width:100vw;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;box-sizing:border-box}
+  .slide{width:100vw;height:100%;flex-shrink:0;scroll-snap-align:start;padding:18px 22px 20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;box-sizing:border-box}
   .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-bottom:18px}
   .title{font-size:clamp(26px,6vw,38px);line-height:1.12;font-weight:500;letter-spacing:-.01em;margin-bottom:20px}
   .excerpt{font-size:clamp(17px,4.4vw,20px);line-height:1.62;color:var(--paper);max-width:38em;opacity:.88}
